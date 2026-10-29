@@ -1,6 +1,6 @@
 name: astrbot_plugin_bili_shadow
 display_name: 云梢的B站分身
 desc: 主人私聊专用的只读B站任务与独立观看记忆，不向分身传递私聊上下文。
-version: 0.1.1
+version: 0.2.0
 author: WhaleBot
 astrbot_version: ">=4.29.3"

@@ -18,11 +18,27 @@ from astrbot.core.star.session_plugin_manager import SessionPluginManager
 from .policy import FLAG, MARKER, TOOLS, owner_private, task_target, report_block, memory_question, needs_reports
 from .store import Store
 from .engine import ModelPort, load_helpers, make_reader, execute
+from .proactive import ProactiveMixin
 
 NAME = 'astrbot_plugin_bili_shadow'
 LEGACY = 'astrbot_plugin_bilibili_ai_bot'
 
-class BiliShadow(Star):
+class BiliShadow(Star, ProactiveMixin):
+    @filter.command('bili分享测试')
+    async def qq_share_test(self, event: AstrMessageEvent):
+        async for result in self.test_delivery(event):
+            yield result
+
+    @filter.command('bili分享确认')
+    async def qq_share_confirm(self, event: AstrMessageEvent):
+        async for result in self.confirm_delivery(event):
+            yield result
+
+    @filter.command('bili浏览暂停')
+    async def qq_browse_pause(self, event: AstrMessageEvent):
+        async for result in self.pause_browsing(event):
+            yield result
+
     def __init__(self, context: Context, config: dict):
         super().__init__(context)
         self.config = config
@@ -40,6 +56,7 @@ class BiliShadow(Star):
             raise RuntimeError('Shadow memory integrations missing or changed; review installation')
         source = Path(__file__).resolve().parent.parent / LEGACY
         self.helper = load_helpers(source, self.data_dir)
+        self.start_proactive()
         logger.info('[BiliShadow] Ready: owner private chat only; separate reports; no social writes.')
 
     def guards_valid(self):
@@ -192,6 +209,10 @@ class BiliShadow(Star):
 
     async def terminate(self):
         self._closing = True
+        scheduler=getattr(self,'scheduler',None)
+        if scheduler is not None:
+            scheduler.cancel()
+            await asyncio.gather(scheduler,return_exceptions=True)
         pending = [task for task in self._tasks if task is not asyncio.current_task()]
         for task in pending:
             task.cancel()
