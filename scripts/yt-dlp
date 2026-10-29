@@ -1,0 +1,9 @@
+#!/usr/local/bin/python
+"""Expose the persistent AstrBot yt-dlp package to media plugins."""
+import sys
+
+sys.path.insert(0, "/AstrBot/data/site-packages")
+from yt_dlp import main
+
+if __name__ == "__main__":
+    main()

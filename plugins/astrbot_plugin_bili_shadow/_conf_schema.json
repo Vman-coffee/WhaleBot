@@ -1,0 +1,6 @@
+{
+  "enabled": {"type": "bool", "default": false, "description": "启用云梢的只读B站分身"},
+  "owner_id": {"type": "string", "default": "", "description": "允许使用分身的主人QQ号"},
+  "persona_id": {"type": "string", "default": "专属女仆-云梢", "description": "允许调用分身的当前会话人格"},
+  "provider_id": {"type": "string", "default": "", "description": "分身独立调用的模型ID"}
+}

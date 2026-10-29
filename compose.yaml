@@ -10,6 +10,7 @@ services:
       - "127.0.0.1:${ASTRBOT_WEBUI_PORT:-6185}:6185"
     volumes:
       - astrbot-data:/AstrBot/data
+      - ./scripts/yt-dlp:/usr/local/bin/yt-dlp:ro
 
   snowluma:
     image: ${SNOWLUMA_IMAGE:-motricseven7/snowluma:v2.2.1}
