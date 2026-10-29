@@ -5,3 +5,7 @@ data/
 backups/
 *.log
 /重要私人配置.txt
+__pycache__/
+*.py[cod]
+.pytest_cache/
+/dist/

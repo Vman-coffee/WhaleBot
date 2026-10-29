@@ -270,6 +270,12 @@ v2.2.1 已将应用数据目录统一为 `/app/data`，并包含配置权限修�
 | 指令有回复但模型无回复 | 检查聊天模型选择、模型服务凭据和 AstrBot 错误日志 |
 | 群里没有回复 | 尝试 @机器人，检查唤醒配置及会话权限 |
 
+## 单向个人记忆插件
+
+本仓库新增 [单向个人记忆](plugins/astrbot_plugin_directional_memory/README.md)：同一用户在私聊时可召回自己的各群记录，群聊只可召回本人在当前群的记录，私聊内容不会由该插件注入群聊。通过 AstrBot WebUI 的插件配置页设置启用用户、采集开关、保留天数和注入预算。
+
+插件源代码位于 `plugins/astrbot_plugin_directional_memory/`，是独立本地记忆存储，不会自动导入或改写现有 LivingMemory 摘要。安装方式、隔离规则、成本和验收步骤见插件说明。
+
 ## 官方资料
 
 - [AstrBot Docker 部署](https://docs.astrbot.app/deploy/astrbot/docker.html)
