@@ -15,7 +15,7 @@ from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.message import TextPart
 from astrbot.core.star.session_llm_manager import SessionServiceManager
 from astrbot.core.star.session_plugin_manager import SessionPluginManager
-from .policy import FLAG, MARKER, TOOLS, owner_private, task_target, report_block
+from .policy import FLAG, MARKER, TOOLS, owner_private, task_target, report_block, memory_question, needs_reports
 from .store import Store
 from .engine import ModelPort, load_helpers, make_reader, execute
 
@@ -94,6 +94,8 @@ class BiliShadow(Star):
     async def run_task(self, event, operation, target):
         if not await self.authorized(event):
             return 'B站分身仅在主人与云梢的私聊中可用；当前会话未获授权。'
+        if memory_question(event.message_str):
+            return await self.get_reports(event)
         try:
             target = task_target(operation, target, event.message_str)
         except ValueError as exc:
@@ -154,8 +156,10 @@ class BiliShadow(Star):
         if not allowed:
             return
         text = event.message_str or ''
-        if re.search(r'B站|bilibili|BV[0-9A-Za-z]{10}|分身|刷视频|观看报告', text, re.I):
+        if needs_reports(text):
             self.mark_report(event)
+            if memory_question(text) and toolset is not None:
+                toolset.remove_tool('yunshao_bili_task')
             rows = self.store.recent(self.scope(event), 3)
             parts.append(TextPart(text=report_block(rows) + '\n任务只允许明确的BV号或原消息中的公开搜索词。不能转交整段私聊。').mark_as_temp())
 
@@ -177,7 +181,9 @@ class BiliShadow(Star):
         @dataclass
         class ReportTool(FunctionTool[AstrAgentContext]):
             name: str = 'yunshao_bili_report'
-            description: str = '云梢读取自己的B站分身最近三份独立报告，用当前会话人格给主人回复。仅主人私聊可用。'
+            description: str = ('读取云梢最近的B站经历。主人问“最近B站有什么有趣的？”“最近刷到什么？”'
+                                '“有什么好看的推荐？”时优先调用，无需主人明确提及分身。'
+                                '仅主人与云梢私聊可用；只读已有记忆，不代表实时热榜，不启动浏览。')
             parameters: dict = Field(default_factory=lambda: {'type':'object','properties':{},'additionalProperties':False})
             async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
                 event = getattr(getattr(context, 'context', None), 'event', None)

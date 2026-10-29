@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock, patch
-from astrbot_plugin_bili_shadow.policy import owner_private, task_target, report_block, PUBLIC_PERSONA, FLAG
+from astrbot_plugin_bili_shadow.policy import owner_private, task_target, report_block, PUBLIC_PERSONA, FLAG, memory_question, needs_reports
 from astrbot_plugin_bili_shadow.store import Store
 from astrbot_plugin_bili_shadow.engine import ModelPort, make_reader
 from astrbot_plugin_bili_shadow.main import BiliShadow
@@ -28,6 +28,16 @@ class Event:
 CONFIG={'enabled':True,'owner_id':'owner','persona_id':'yunshao','provider_id':'model'}
 
 class PolicyTests(unittest.TestCase):
+    def test_casual_recall_and_explicit_tasks_are_distinct(self):
+        for text in ('最近B站有什么有趣的？','今天哔哩哔哩有什么好玩的',
+                     '最近刷到什么了？','最近看到什么好看的视频？','刚才看了啥？'):
+            with self.subTest(text=text):
+                self.assertTrue(memory_question(text))
+                self.assertTrue(needs_reports(text))
+        for text in ('帮我搜索天文科普','B站帮我找点天文视频','看 BV11K421t7Xg',
+                     '最近工作有什么有趣的？','今天吃什么？'):
+            with self.subTest(text=text):
+                self.assertFalse(memory_question(text))
     def test_only_real_private_owner(self):
         self.assertTrue(owner_private(Event(), CONFIG))
         for changes in ({'user':'other'}, {'group':'group'}, {'private':False}, {'admin':False},
@@ -142,5 +152,26 @@ class BoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(event.get_extra(FLAG))
         self.assertEqual(req.system_prompt,'CURRENT_PERSONA')
         self.assertIn('bilibili_shadow',req.extra_user_content_parts[0].text)
+    async def test_casual_recall_injects_even_empty_memory_and_hides_browsing(self):
+        from astrbot.core.agent.tool import ToolSet, FunctionTool
+        plugin=object.__new__(BiliShadow)
+        plugin.authorized=AsyncMock(return_value=True)
+        plugin.store=NS(recent=lambda scope,limit:[])
+        tools=ToolSet([FunctionTool(name=n,description='x',parameters={}) for n in
+                       ('yunshao_bili_task','yunshao_bili_report','memorize_long_term_memory')])
+        req=NS(func_tool=tools,system_prompt='CURRENT_PERSONA',extra_user_content_parts=[])
+        event=Event(message_str='最近B站有什么有趣的？')
+        await plugin.inject_reports(event,req)
+        self.assertEqual(req.func_tool.names(),['yunshao_bili_report'])
+        self.assertEqual(req.system_prompt,'CURRENT_PERSONA')
+        self.assertIn('没有记录就坦率说明',req.extra_user_content_parts[0].text)
+        self.assertTrue(event.get_extra(FLAG))
+    async def test_casual_recall_cannot_dispatch_network_task(self):
+        plugin=object.__new__(BiliShadow)
+        plugin.authorized=AsyncMock(return_value=True)
+        plugin.get_reports=AsyncMock(return_value='existing report')
+        result=await plugin.run_task(Event(message_str='最近B站有什么有趣的？'),'search','有趣')
+        self.assertEqual(result,'existing report')
+        plugin.get_reports.assert_awaited_once()
 
 if __name__=='__main__': unittest.main()
