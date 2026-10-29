@@ -1,0 +1,3 @@
+[submodule "plugins/astrbot_plugin_directional_memory"]
+	path = plugins/astrbot_plugin_directional_memory
+	url = https://github.com/Vman-coffee/astrbot_plugin_directional_memory.git
