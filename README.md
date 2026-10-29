@@ -272,9 +272,17 @@ v2.2.1 已将应用数据目录统一为 `/app/data`，并包含配置权限修�
 
 ## 单向个人记忆插件
 
-本仓库新增 [单向个人记忆](plugins/astrbot_plugin_directional_memory/README.md)：同一用户在私聊时可召回自己的各群记录，群聊只可召回本人在当前群的记录，私聊内容不会由该插件注入群聊。通过 AstrBot WebUI 的插件配置页设置启用用户、采集开关、保留天数和注入预算。
+独立插件仓库：[单向个人记忆](https://github.com/Vman-coffee/astrbot_plugin_directional_memory)。同一用户在私聊时可召回自己的各群记录，群聊只可召回本人在当前群的记录，私聊内容不会由该插件注入群聊。通过 AstrBot WebUI 的插件配置页设置启用用户、采集开关、保留天数和注入预算。
 
-插件源代码位于 `plugins/astrbot_plugin_directional_memory/`，是独立本地记忆存储，不会自动导入或改写现有 LivingMemory 摘要。安装方式、隔离规则、成本和验收步骤见插件说明。
+主项目通过 `plugins/astrbot_plugin_directional_memory/` Git 子模块固定引用插件版本，不再保存重复源码。它不会自动导入或改写现有 LivingMemory 摘要，也不会替换群聊人格。安装方式、配置项、命令、隔离规则和验收步骤见[插件 README](https://github.com/Vman-coffee/astrbot_plugin_directional_memory#readme)。
+
+克隆完整项目：
+
+```sh
+git clone --recurse-submodules https://github.com/Vman-coffee/WhaleBot.git
+```
+
+已有项目拉取后执行 `git submodule update --init --recursive` 获取所固定的插件版本。升级时先在插件仓库提交和测试，再更新本项目的子模块引用；不要直接将引用切到未经检查的最新提交。
 
 ## 官方资料
 
