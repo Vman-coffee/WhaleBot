@@ -38,6 +38,18 @@ QQ 扫码登录、首次面板设置和模型配置仍需手动完成；启动�
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-WhaleBot.ps1 -NoBrowser
 ```
 
+## 一键关闭（Windows）
+
+双击项目根目录的 **[Stop-WhaleBot.cmd](Stop-WhaleBot.cmd)**，即可停止本项目的 AstrBot 和 SnowLuma 容器。配置、聊天上下文、插件及 QQ 数据卷均保留，Docker Desktop 和其他项目的容器继续运行。
+
+再次使用时双击 `Start-WhaleBot.cmd`。如果两个容器已经停止，关闭脚本会直接提示，无需启动 Docker 或重建容器。Docker 引擎不可用时会说明情况，不会自动启动 Docker。
+
+可以在 PowerShell 中预览关闭操作，预览不会停止容器：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Stop-WhaleBot.ps1 -WhatIf
+```
+
 ## 手动启动
 
 ### 1. 检查 Docker
