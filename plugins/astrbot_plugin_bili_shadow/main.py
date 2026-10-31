@@ -132,8 +132,12 @@ class BiliShadow(Star, ProactiveMixin):
                     raise RuntimeError('reader unavailable')
                 path = Path(__file__).resolve().parents[2] / 'config' / (LEGACY + '_config.json')
                 reader = make_reader(self.helper, path, ModelPort(provider.text_chat, provider_id), provider_id)
-                payload = await asyncio.wait_for(execute(reader, operation, target), timeout=420)
+                payload = await asyncio.wait_for(execute(reader, operation, target), timeout=105)
                 self.store.finish(task_id, scope, payload)
+                if operation == 'search_watch':
+                    for item in payload.get('items', []):
+                        if item.get('kind') == 'viewing_experience':
+                            self.ledger.reserve_video(scope, item['bvid'])
                 return report_block(self.store.recent(scope, 1))
         except asyncio.CancelledError:
             self.store.fail(task_id, scope)
@@ -186,10 +190,11 @@ class BiliShadow(Star, ProactiveMixin):
         class TaskTool(FunctionTool[AstrAgentContext]):
             name: str = 'yunshao_bili_task'
             description: str = ('云梢向自己的B站协作分身下达只读任务。仅主人私聊可用。'
-                                'watch必须用主人本条消息中的BV号；search只用本条消息中的公开主题短语。'
+                                '主人说去B站找某主题的视频看看并反馈时，使用search_watch：自动搜索并分析最多两条，不要求BV号。'
+                                'watch用于明确BV号；search仅返回搜索列表。search和search_watch的target只用本条消息中的公开关键词。'
                                 '不传私聊背景、理由或个人信息。结果是分身经历，不是用户事实。')
             parameters: dict = Field(default_factory=lambda: {'type':'object', 'properties':{
-                'operation':{'type':'string','enum':['watch','search']},
+                'operation':{'type':'string','enum':['watch','search','search_watch']},
                 'target':{'type':'string','description':'本条用户消息中的BV号或2～40字公开搜索词'}},
                 'required':['operation','target'], 'additionalProperties':False})
             async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:

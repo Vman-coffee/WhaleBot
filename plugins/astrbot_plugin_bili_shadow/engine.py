@@ -1,12 +1,13 @@
 """Reuse pinned media helpers, without instantiating BiliBot or its memory/tools."""
 import hashlib
+import asyncio
 import importlib
 import json
 import sys
 import types
 from pathlib import Path
 from urllib.parse import urlsplit
-from .policy import PUBLIC_PERSONA
+from .policy import PUBLIC_PERSONA, BV
 
 class ModelPort:
     """Only a model callable crosses this boundary; no AstrBot context or tools."""
@@ -86,6 +87,34 @@ def make_reader(helper_class, config_path, model_port, provider_id):
     return reader
 
 async def execute(reader, operation, target):
+    if operation == 'search_watch':
+        if hasattr(reader, 'config'):
+            reader.config['VIDEO_SEGMENT_MAX_COUNT'] = 1
+        found = await asyncio.wait_for(reader.search_bilibili_videos(target, ps=5),timeout=8)
+        def duration(video):
+            try:
+                parts=[int(p) for p in str(video.get('duration','')).split(':')]
+                return sum(v * 60**i for i,v in enumerate(reversed(parts)))
+            except ValueError:
+                return 0
+        # The host cancels tools at 120 seconds. Avoid full downloads of long compilations.
+        found=sorted((v for v in found if 0 < duration(v) <= 600),key=duration)
+        selected = []
+        for video in found:
+            bvid = str(video.get('bvid', ''))
+            if BV.fullmatch(bvid) and bvid not in selected:
+                selected.append(bvid)
+            if len(selected) == 2:
+                break
+        results = []
+        for bvid in selected:
+            try:
+                results.append(await asyncio.wait_for(execute(reader, 'watch', bvid), timeout=45))
+            except (Exception, asyncio.TimeoutError):
+                results.append({'kind':'viewing_failure', 'bvid':bvid,
+                                'limitation':'本条在45秒内未完成分析或读取失败，不能声称已经看过；其他已完成结果保留。'})
+        return {'kind':'search_and_view', 'keyword':target, 'items':results,
+                'limitation':'优先选择10分钟以内的短视频，最多两条、每条最多45秒分析；逐条区分观看依据与失败。没有符合时长条件的结果时请换关键词，不冒充已观看。'}
     if operation == 'search':
         found = await reader.search_bilibili_videos(target, ps=3)
         return {'kind':'search_result', 'items':[
@@ -103,4 +132,4 @@ async def execute(reader, operation, target):
     return {'kind':'viewing_experience', 'bvid':target, 'title':info['title'],
             'basis':info.get('analysis_basis','unknown'), 'summary':str(summary or '')[:1800],
             'diagnostics':info.get('_media_diagnostics', []),
-            'limitation':'最多分析前3分钟的稀疏抽帧，无音频；字幕可能错配。未覆盖部分不可推断。'}
+            'limitation':f"最多分析前{getattr(reader, 'config', {}).get('VIDEO_SEGMENT_MAX_COUNT', 3)}分钟的稀疏抽帧，无音频；字幕可能错配。未覆盖部分不可推断。"}

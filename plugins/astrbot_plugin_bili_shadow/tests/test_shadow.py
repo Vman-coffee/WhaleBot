@@ -7,7 +7,7 @@ from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock, patch
 from astrbot_plugin_bili_shadow.policy import owner_private, task_target, report_block, PUBLIC_PERSONA, FLAG, memory_question, needs_reports
 from astrbot_plugin_bili_shadow.store import Store
-from astrbot_plugin_bili_shadow.engine import ModelPort, make_reader
+from astrbot_plugin_bili_shadow.engine import ModelPort, make_reader, execute
 from astrbot_plugin_bili_shadow.main import BiliShadow
 
 class Event:
@@ -80,6 +80,35 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(other.recent('owner'),[])
 
 class BoundaryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_keyword_watch_limits_and_deduplicates_candidates(self):
+        reader=NS(search_bilibili_videos=AsyncMock(return_value=[
+            {'bvid':'invalid','duration':'1:00'}, {'bvid':'BV11K421t7Xg','duration':'1:01'}, {'bvid':'BV11K421t7Xg','duration':'1:01'},
+            {'bvid':'BV1PzxV65Eg5','duration':'2:00'}, {'bvid':'BV1unx36UE6o','duration':'91:00'}]),
+            _get_video_oid=AsyncMock(return_value=1),
+            _get_video_info=AsyncMock(return_value={'title':'test'}),
+            _analyze_video_with_vision_inner=AsyncMock(return_value='public summary'))
+        result=await execute(reader,'search_watch','天文科普')
+        self.assertEqual(len(result['items']),2)
+        self.assertEqual(reader._analyze_video_with_vision_inner.await_count,2)
+        self.assertEqual(task_target('search_watch','天文科普','去B站找一些天文科普视频看看'),'天文科普')
+    async def test_keyword_watch_empty_and_partial_failure_are_honest(self):
+        reader=NS(search_bilibili_videos=AsyncMock(return_value=[]))
+        self.assertEqual((await execute(reader,'search_watch','天文'))['items'],[])
+        reader.search_bilibili_videos.return_value=[{'bvid':'BV11K421t7Xg','duration':'1:00'},{'bvid':'BV1PzxV65Eg5','duration':'2:00'}]
+        reader._get_video_oid=AsyncMock(side_effect=[RuntimeError(),None])
+        result=await execute(reader,'search_watch','天文')
+        self.assertTrue(all(r['kind']=='viewing_failure' for r in result['items']))
+    async def test_keyword_watch_keeps_success_after_other_video_times_out(self):
+        reader=NS(search_bilibili_videos=AsyncMock(return_value=[
+            {'bvid':'BV1unx36UE6o','duration':'91:00'},
+            {'bvid':'BV11K421t7Xg','duration':'1:00'}, {'bvid':'BV1PzxV65Eg5','duration':'2:00'}]),
+            _get_video_oid=AsyncMock(return_value=1),
+            _get_video_info=AsyncMock(return_value={'title':'test'}),
+            _analyze_video_with_vision_inner=AsyncMock(side_effect=[asyncio.TimeoutError(),'completed']))
+        result=await execute(reader,'search_watch','鬼畜视频')
+        self.assertEqual([x['kind'] for x in result['items']],['viewing_failure','viewing_experience'])
+        self.assertEqual(result['items'][1]['summary'],'completed')
+        self.assertEqual([x.args[0] for x in reader._get_video_oid.call_args_list],['BV11K421t7Xg','BV1PzxV65Eg5'])
     async def test_model_port_has_no_history_or_tools(self):
         call=AsyncMock(return_value=NS(completion_text='result'))
         port=ModelPort(call,'model')
